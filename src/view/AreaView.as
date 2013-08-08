@@ -33,7 +33,7 @@ public class AreaView extends Sprite {
     private static const borderSize2:int = 2;
     private static const borderColor:uint = 0x000000;
 
-    private static const TYPE_COLORS:Array = [0xfffddf, 0x505050, 0x507050, 0xccddcc];
+    private static const TYPE_COLORS:Array = [0xfffdaf, 0x505050, 0x507050, 0xddffdd];
     private static const TYPE_ALPHA:Number = 1;
 
     private var _field:Sprite = new Sprite();
