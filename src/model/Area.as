@@ -17,12 +17,7 @@ public class Area extends EventDispatcher {
     private var _originX:int = 0;
     private var _originY:int = 0;
 
-    private var _sourceX:int = 0;
-    private var _sourceY:int = 0;
-
-    private var _noSource:Boolean = true;
-    private var _sourceIsW:Boolean;
-    private var _sourceInd:int;
+    private var _source:Array = [new Source(), new Source()];
 
     //evaluation result
     private var _differentSizes:Boolean = true;
@@ -58,8 +53,9 @@ public class Area extends EventDispatcher {
         if (ind >= 0)
             _cells.splice(ind, 1);
 
-        if (_sourceX == x && _sourceY == y)
-            _noSource = true;
+        for (var src:int = 0; src < 2; src ++)
+            if (_source[src].sourceX == x && _source[src].sourceY == y)
+                _source[src].noSource = true;
 
         dispatchEvent(new Event(Event.CHANGE));
     }
@@ -85,26 +81,26 @@ public class Area extends EventDispatcher {
         dispatchEvent(new Event(Event.CHANGE));
     }
 
-    public function setSource(x:int, y:int):void {
+    public function setSource(src:int, x:int, y:int):void {
         if (! hasCell(x, y)) {
-            _noSource = true;
+            _source[src].noSource = true;
             dispatchEvent(new Event(Event.CHANGE));
             return;
         }
 
-        _sourceX = x;
-        _sourceY = y;
+        _source[src].sourceX = x;
+        _source[src].sourceY = y;
 
-        _noSource = false;
+        _source[src].noSource = false;
 
         if (_evaluated)
-            updateSourceInfo();
+            updateSourceInfo(src);
 
         dispatchEvent(new Event(SOURCE_CHANGE_EVENT));
     }
 
-    public function hasSource():Boolean {
-        return !_noSource;
+    public function hasSource(src:int):Boolean {
+        return !_source[src].noSource;
     }
 
     public function get originX():int {
@@ -115,20 +111,20 @@ public class Area extends EventDispatcher {
         return _originY;
     }
 
-    public function get sourceX():int {
-        return _sourceX;
+    public function getSourceX(src:int):int {
+        return _source[src].sourceX;
     }
 
-    public function get sourceY():int {
-        return _sourceY;
+    public function getSourceY(src:int):int {
+        return _source[src].sourceY;
     }
 
-    public function get sourceIsW():Boolean {
-        return _sourceIsW;
+    public function getSourceIsW(src:int):Boolean {
+        return _source[src].sourceIsW;
     }
 
-    public function get sourceInd():int {
-        return _sourceInd;
+    public function getSourceInd(src:int):int {
+        return _source[src].sourceInd;
     }
 
     public function cellType(x:int, y:int):int { //w0 = 0, w1 = 3, b0 = 2, b1 = 1
@@ -150,7 +146,8 @@ public class Area extends EventDispatcher {
 
     public function clear():void {
         _cells = [];
-        _noSource = true;
+        _source[0].noSource = true;
+        _source[1].noSource = true;
 
         dispatchEvent(new Event(Event.CHANGE));
     }
@@ -207,7 +204,8 @@ public class Area extends EventDispatcher {
             return;
         }
 
-        updateSourceInfo();
+        for (var src:int = 0; src < 2; src++)
+            updateSourceInfo(src);
 
         K = new Array(n);
         for (var i:int = 0; i < n; i++) {
@@ -355,20 +353,20 @@ public class Area extends EventDispatcher {
 //            trace(line);
 //    }
 
-    private function updateSourceInfo():void {
-        var typ:int = cellType(_sourceX, _sourceY);
-        _sourceIsW = typ == 0 || typ == 3;
-        var y_cells:Array = _sourceIsW ? w_cells : b_cells;
+    private function updateSourceInfo(src:int):void {
+        var typ:int = cellType(_source[src].sourceX, _source[src].sourceY);
+        _source[src].sourceIsW = typ == 0 || typ == 3;
+        var y_cells:Array = _source[src].sourceIsW ? w_cells : b_cells;
 
         for (var i:int = 0; i < y_cells.length; i++) {
             var cell:Array = y_cells[i];
-            if (cell[0] == _sourceX && cell[1] == _sourceY) {
-                _sourceInd = i;
+            if (cell[0] == _source[src].sourceX && cell[1] == _source[src].sourceY) {
+                _source[src].sourceInd = i;
                 return;
             }
         }
 
-        _sourceInd = -1; //kann nicht sein
+        _source[src].sourceInd = -1; //kann nicht sein
     }
 
     public function couple(x:Number, y:Number):Complex {
@@ -387,10 +385,10 @@ public class Area extends EventDispatcher {
 
             var pointIsW:Boolean = y_cells == w_cells;
 
-            if (pointIsW == _sourceIsW)
+            if (pointIsW == _source[0].sourceIsW)
                 return new Complex(0);
 
-            return _sourceIsW ? K_1[ind][_sourceInd] : K_1[_sourceInd][ind];
+            return _source[0].sourceIsW ? K_1[ind][_source[0].sourceInd] : K_1[_source[0].sourceInd][ind];
         }
 
         return null;
@@ -433,8 +431,9 @@ public class Area extends EventDispatcher {
 
         clearRectangle(x1, y1, x2, y2);
 
-        if (hasSource() && x1 <= _sourceX && _sourceX <= x2 && y1 <= _sourceY && _sourceY <= y2)
-            _noSource = true;
+        for (var src:int = 0; src < 2; src++)
+            if (hasSource(src) && x1 <= _source[src].sourceX && _source[src].sourceX <= x2 && y1 <= _source[src].sourceY && _source[src].sourceY <= y2)
+                _source[src].noSource = true;
 
         dispatchEvent(new Event(Event.CHANGE));
     }
@@ -463,16 +462,17 @@ public class Area extends EventDispatcher {
         _originY = value;
     }
 
-    public function set sourceX(value:int):void {
-        _sourceX = value;
+    public function setSourceX(src:int, value:int):void {
+        _source[src].sourceX = value;
     }
 
-    public function set sourceY(value:int):void {
-        _sourceY = value;
+    public function setSourceY(src:int, value:int):void {
+        _source[src].sourceY = value;
     }
 
-    public function set noSource(value:Boolean):void {
-        _noSource = value;
+    public function setNoSource(src:int, value:Boolean):void {
+        _source[src].noSource = value;
     }
+
 }
 }

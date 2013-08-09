@@ -111,7 +111,7 @@ public class AreaView extends Sprite {
     private function mergeRegimeChangeHandler(event:Event):void {
         var merger:AreaView = AreaView(event.target);
         if (merger.mergeOn) {
-            if (!_area.evaluated || !_area.hasSource()) {
+            if (!_area.evaluated || !_area.hasSource(0)) {
                 merger.mergeOn = false;
                 coefTextField.type = isMerging() ? TextFieldType.DYNAMIC : TextFieldType.INPUT;
                 return;
@@ -293,11 +293,12 @@ public class AreaView extends Sprite {
             drawCells();
 
         //mark source
-        if (_area.hasSource()) {
-            var p:Point = logical2screen(_area.sourceX, _area.sourceY);
-            g.lineStyle(2, 0xFF0000);
-            g.drawRect(p.x, p.y, _cellSize, _cellSize);
-        }
+        for (var src:int = 0; src < 2; src++)
+            if (_area.hasSource(src)) {
+                var p:Point = logical2screen(_area.getSourceX(src), _area.getSourceY(src));
+                g.lineStyle(2, src == 0 ? 0xFF0000 : 0x0000FF);
+                g.drawRect(p.x, p.y, _cellSize, _cellSize);
+            }
     }
 
     private function drawCells():void {
@@ -319,10 +320,10 @@ public class AreaView extends Sprite {
         var lc:Complex = coefficient.mul(c);
 
         for each (var areaView:AreaView in _mergers) {
-            var sx:int = areaView.area.sourceX;
-            var sy:int = areaView.area.sourceY;
+            var sx:int = areaView.area.getSourceX(0);
+            var sy:int = areaView.area.getSourceY(0);
 
-            c = areaView.area.couple(x + sx - _area.sourceX, y + sy - _area.sourceY);
+            c = areaView.area.couple(x + sx - _area.getSourceX(0), y + sy - _area.getSourceY(0));
             if (c == null)
                 return null;
 
@@ -412,8 +413,12 @@ public class AreaView extends Sprite {
                 var p:Point = screen2logical(event.localX, event.localY);
                 if (event.shiftKey)
                     _area.setOrigin(p.x, p.y);
-                else
-                    _area.setSource(p.x, p.y);
+                else {
+                    if (event.altKey)
+                        _area.setSource(1, p.x, p.y);
+                    else
+                        _area.setSource(0, p.x, p.y);
+                }
                 return;
             }
         }
@@ -595,7 +600,7 @@ public class AreaView extends Sprite {
     }
 
     private function field_mouseMoveHandler(event:MouseEvent):void {
-        if (startDragField || ! _showHints || ! _area.evaluated || ! _area.hasSource()) {
+        if (startDragField || ! _showHints || ! _area.evaluated || ! _area.hasSource(0)) { //TODO hasSource(0?)
             tooltip.visible = false;
             return;
         }
@@ -668,7 +673,7 @@ public class AreaView extends Sprite {
             return;
 
         if (value)
-            if (!_area.hasSource() || !_area.evaluated)
+            if (!_area.hasSource(0) || !_area.evaluated)
                 return;
 
         _mergeOn = value;
@@ -701,6 +706,39 @@ public class AreaView extends Sprite {
             return new Complex(0, Number(txt));
         else
             return new Complex(Number(txt));
+    }
+
+    //load and save
+
+    public function load(data:Object, ind:int):void {
+        cellSize = data['cellsize' + ind];
+        field.x = data['fieldX' + ind];
+        field.y = data['fieldY' + ind];
+
+        _area.originX = data['originX' + ind];
+        _area.originY = data['originY' + ind];
+        for (var src:int = 0; src < 2; src++) {
+            _area.setSourceX(src, data['sourceX' + ind + src]);
+            _area.setSourceY(src, data['sourceY' + ind + src]);
+            _area.setNoSource(src, !data['hasSource' + ind + src]);
+        }
+        _area.cells = data['cells' + ind];
+    }
+    
+    public function save(data:Object, ind:int):void {
+        data['cells' + ind] = _area.cells;
+        data['originX' + ind] = _area.originX;
+        data['originY' + ind] = _area.originY;
+
+        for (var src:int = 0; src < 2; src++) {
+            data['sourceX' + ind + src] = _area.getSourceX(src);
+            data['sourceY' + ind + src] = _area.getSourceY(src);
+            data['hasSource' + ind + src] = _area.hasSource(src);
+        }
+
+        data['cellsize' + ind] = cellSize;
+        data['fieldX' + ind]= field.x;
+        data['fieldY' + ind] = field.y;
     }
 }
 }
