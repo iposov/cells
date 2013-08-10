@@ -179,9 +179,22 @@ public class Area extends EventDispatcher {
 
         _wrongSizes = nb - nw != 0 && nb - nw != 1;
         if (_wrongSizes || nb == 0 || nw == 0) {
+            _wrongSizes = true;
             _evaluated = false;
             return;
         }
+
+        for (var src:int = 0; src < 2; src++)
+            updateSourceIndex(src);
+
+        if (_source[0].noSource || _source[0].sourceIsW)
+            _wrongSizes = true;
+        if (_source[1].noSource)
+            _wrongSizes = true;
+        if (nb - nw == 1 && _source[1].sourceIsW)
+            _wrongSizes = true;
+        if (nb - nw == 0 && !_source[1].sourceIsW)
+            _wrongSizes = true;
 
         if ((nw > 100 || nb > 100) && event != null) {
             _evaluated = false;
@@ -200,18 +213,6 @@ public class Area extends EventDispatcher {
         b_cells.sort(cmp_even_odd);
 
         //create initial matrix K
-
-        for (var src:int = 0; src < 2; src++)
-            updateSourceIndex(src);
-
-        if (_source[0].noSource || _source[0].sourceIsW)
-            _wrongSizes = true;
-        if (_source[1].noSource)
-            _wrongSizes = true;
-        if (nb - nw == 1 && _source[1].sourceIsW)
-            _wrongSizes = true;
-        if (nb - nw == 0 && !_source[1].sourceIsW)
-            _wrongSizes = true;
 
         var eval_type:int = nb - nw;
 
@@ -269,18 +270,19 @@ public class Area extends EventDispatcher {
         var Bw:Array = new Array(nw);
 
         //add equation on black cells for every white cell
-        for (i = 0; i < nb; i++) {
-            Kw[i] = new Array(nw);
-
-            if (eval_type == 1 && s2i == i)
+        i = 0;
+        for (var ii:int = 0; ii < nb; ii++) {
+            if (eval_type == 1 && s2i == ii)
                 continue;
 
-            xy = b_cells[i];
+            Kw[i] = new Array(nw);
+
+            xy = b_cells[ii];
             x = xy[0];
             y = xy[1];
             typ = cellType(x, y);
 
-            Bw[i] = s1i == i ? 1 : 0;
+            Bw[i] = s1i == ii ? 1 : 0;
 
             for (j = 0; j < nw; j++) {
                 var xy_w:Array = w_cells[j];
@@ -292,8 +294,10 @@ public class Area extends EventDispatcher {
                 else if (Math.abs(dx) == 1 && dy == 0) //to the left or to the right
                     Kw[i][j] = typ == 2 ? dx : -dx;
                 else
-                    Kb[i][j] = 0;
+                    Kw[i][j] = 0;
             }
+
+            i += 1;
         }
 
         time = new Date().getTime();
@@ -390,6 +394,9 @@ public class Area extends EventDispatcher {
 
             logTime("line " + t + " processed"); // 33.726 пропусков строчек
         }
+
+        for (t = 0; t < n; t++)
+            K_1[t] = K_1[t] / K_0[t][t];
 
         return [false, K_1];
     }

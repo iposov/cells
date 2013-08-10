@@ -476,14 +476,10 @@ public class AreaView extends Sprite {
             return;
         }
 
-        if (! _area.evaluated) {
-            evalTextField.text =
-                    (_area.det_is_0(0) ? 'det_b = 0' : 'det_b != 0') + ', ' +
-                            (_area.det_is_0(1) ? 'det_w = 0' : 'det_w != 0');
-            return;
-        }
-
-        evalTextField.text = 'Вычислено!';
+        if (! _area.evaluated)
+            evalTextField.text = 'Не вычислено :(';
+        else
+            evalTextField.text = 'Вычислено!';
     }
 
     private function field_mouseMoveHandler(event:MouseEvent):void {
