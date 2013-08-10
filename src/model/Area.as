@@ -20,13 +20,15 @@ public class Area extends EventDispatcher {
     private var _source:Array = [new Source(), new Source()];
 
     //evaluation result
-    private var _differentSizes:Boolean = true;
-    private var K:Array;
-    private var K_1:Array;
-    private var _det:Complex;
+    private var _wrongSizes:Boolean = true;
+
+    private var Kb_1:Array;
+    private var Kw_1:Array;
+
     private var w_cells:Array;
     private var b_cells:Array;
     private var _evaluated:Boolean = false;
+    private var _det_is_0:Array = [true, true];
 
     public function Area() {
         _cells = [];
@@ -36,6 +38,7 @@ public class Area extends EventDispatcher {
 //                _cells.push([i + 2, j - 20]);
 
         addEventListener(Event.CHANGE, evaluate, false, 1);
+        addEventListener(Area.SOURCE_CHANGE_EVENT, evaluate, false, 1);
     }
 
     public function hasCell(x:int, y:int):Boolean {
@@ -94,7 +97,7 @@ public class Area extends EventDispatcher {
         _source[src].noSource = false;
 
         if (_evaluated)
-            updateSourceInfo(src);
+            updateSourceIndex(src);
 
         dispatchEvent(new Event(SOURCE_CHANGE_EVENT));
     }
@@ -152,12 +155,8 @@ public class Area extends EventDispatcher {
         dispatchEvent(new Event(Event.CHANGE));
     }
 
-    public function get differentSizes():Boolean {
-        return _differentSizes;
-    }
-
-    public function get det():Complex {
-        return _det;
+    public function get wrongSizes():Boolean {
+        return _wrongSizes;
     }
 
     public function get evaluated():Boolean {
@@ -175,8 +174,16 @@ public class Area extends EventDispatcher {
                 b_cells.push(xy);
         }
 
-        _differentSizes = w_cells.length != b_cells.length;
-        if (_differentSizes) {
+        var nw:int = w_count;
+        var nb:int = b_count;
+
+        _wrongSizes = nb - nw != 0 && nb - nw != 1;
+        if (_wrongSizes || nb == 0 || nw == 0) {
+            _evaluated = false;
+            return;
+        }
+
+        if ((nw > 100 || nb > 100) && event != null) {
             _evaluated = false;
             return;
         }
@@ -194,45 +201,112 @@ public class Area extends EventDispatcher {
 
         //create initial matrix K
 
-        var n:int = w_cells.length;
+        for (var src:int = 0; src < 2; src++)
+            updateSourceIndex(src);
 
-        if (n == 0)
-            return;
+        if (_source[0].noSource || _source[0].sourceIsW)
+            _wrongSizes = true;
+        if (_source[1].noSource)
+            _wrongSizes = true;
+        if (nb - nw == 1 && _source[1].sourceIsW)
+            _wrongSizes = true;
+        if (nb - nw == 0 && !_source[1].sourceIsW)
+            _wrongSizes = true;
 
-        if (n > 100 && event != null) {
+        var eval_type:int = nb - nw;
+
+        if (_wrongSizes) {
             _evaluated = false;
             return;
         }
 
-        for (var src:int = 0; src < 2; src++)
-            updateSourceInfo(src);
+        var Kb:Array = new Array(nb);
+        var Bb:Array = new Array(nb);
 
-        K = new Array(n);
-        for (var i:int = 0; i < n; i++) {
+        var s1x:int = _source[0].sourceX;
+        var s1y:int = _source[0].sourceY;
+        var s1i:int = _source[0].sourceInd;
+        var s2x:int = _source[1].sourceX;
+        var s2y:int = _source[1].sourceY;
+        var s2i:int = _source[1].sourceInd;
+
+        //add equation on black cells for every white cell
+        for (var i:int = 0; i < nw; i++) {
+            Kb[i] = new Array(nb);
+
             xy = w_cells[i];
-            typ = cellType(xy[0], xy[1]);
-            K[i] = new Array(n);
-            for (var j:int = 0; j < n; j++) {
-                var xy2:Array = b_cells[j];
-                var dx:int = xy2[0] - xy[0];
-                var dy:int = xy2[1] - xy[1];
+            var x:int = xy[0];
+            var y:int = xy[1];
+            typ = cellType(x, y);
 
-                if (dy == 0 && Math.abs(dx) == 1) //to the left or the the right
-                    K[i][j] = new Complex(dx);
-                else if (Math.abs(dy) == 1 && dx == 0) //up or down
-                    K[i][j] = new Complex(0, dy);
+            Bb[i] = eval_type == 0 && s2i == i ? 1 : 0;
+
+            for (var j:int = 0; j < nb; j++) {
+                var xy_b:Array = b_cells[j];
+                var dx:int = xy_b[0] - x;
+                var dy:int = xy_b[1] - y;
+
+                if (dx == 0 && Math.abs(dy) == 1) //to the top or to the bottom
+                    Kb[i][j] = dy;
+                else if (Math.abs(dx) == 1 && dy == 0) //to the left or to the right
+                    Kb[i][j] = typ == 0 ? dx : -dx;
                 else
-                    K[i][j] = new Complex(0);
+                    Kb[i][j] = 0;
+            }
+        }
+
+        //if there are more black cells than white, then add one more equation
+        if (eval_type == 1) {
+            Kb[nw] = new Array(nb);
+            for (j = 0; j < nb; j++)
+                Kb[nw][j] = j == s1i ? 1 : 0;
+            Bb[nw] = 1;
+        }
+
+        //create white matrix
+
+        var Kw:Array = new Array(nw);
+        var Bw:Array = new Array(nw);
+
+        //add equation on black cells for every white cell
+        for (i = 0; i < nb; i++) {
+            Kw[i] = new Array(nw);
+
+            if (eval_type == 1 && s2i == i)
+                continue;
+
+            xy = b_cells[i];
+            x = xy[0];
+            y = xy[1];
+            typ = cellType(x, y);
+
+            Bw[i] = s1i == i ? 1 : 0;
+
+            for (j = 0; j < nw; j++) {
+                var xy_w:Array = w_cells[j];
+                dx = xy_w[0] - x;
+                dy = xy_w[1] - y;
+
+                if (dx == 0 && Math.abs(dy) == 1) //to the top or to the bottom
+                    Kw[i][j] = dy;
+                else if (Math.abs(dx) == 1 && dy == 0) //to the left or to the right
+                    Kw[i][j] = typ == 2 ? dx : -dx;
+                else
+                    Kb[i][j] = 0;
             }
         }
 
         time = new Date().getTime();
 
-        trace('before det eval: ' + n);
+        var ev_b:Array = evaluateInverseAndDeterminant(Kb, Bb);
+        _det_is_0[0] = ev_b[0];
+        Kb_1 = ev_b[1];
 
-        evaluateInverseAndDeterminant();
+        var ev_w:Array = evaluateInverseAndDeterminant(Kw, Bw);
+        _det_is_0[1] = ev_b[0];
+        Kw_1 = ev_w[1];
 
-        _evaluated = true;
+        _evaluated = !_det_is_0[0] && !_det_is_0[1];
 
         logTime('after det eval');
     }
@@ -249,19 +323,19 @@ public class Area extends EventDispatcher {
         trace(text, dt / 1000.0);
     }
 
-    private function evaluateInverseAndDeterminant():void {
+    //returns [det == 0, answer]
+    private function evaluateInverseAndDeterminant(K:Array, B:Array):Array {
         var n:int = K.length;
 
         var K_0:Array = new Array(n);
+        var K_1:Array = new Array(n);
 
         K_1 = new Array(n);
         for (var i:int = 0; i < n; i++) {
             K_0[i] = new Array(n);
-            K_1[i] = new Array(n);
-            for (var j:int = 0; j < n; j++) {
-                K_0[i][j] = K[i][j].clone();
-                K_1[i][j] = new Complex(i == j ? 1 : 0);
-            }
+            for (var j:int = 0; j < n; j++)
+                K_0[i][j] = K[i][j];
+            K_1[i] = B[i];
         }
 
         logTime("K_1 and K_0 created");
@@ -269,33 +343,31 @@ public class Area extends EventDispatcher {
         for (var t:int = 0; t < n; t++) {
             //from [t][t] down to [n-1][t] find the maximal module
             var bestInd:int = t;
-            var bestModule:Number = K_0[t][t].norm2;
+            var bestModule:Number = Math.abs(K_0[t][t]);
             for (i = t + 1; i < n; i++) {
-                var module:Number = K_0[i][t].norm2;
+                var module:Number = Math.abs(K_0[i][t]);
                 if (module > bestModule) {
                     bestModule = module;
                     bestInd = i;
                 }
             }
 
-            if (bestModule == 0) {
-                _det = new Complex(0);
-                return;
-            }
+            if (bestModule == 0)
+                return [true, null];
 
             logTime('best module found');
 
             //swap lines if needed
             if (t != bestInd) {
                 for (i = 0; i < n; i++) {
-                    var tmp:Complex = K_0[t][i];
+                    var tmp:Number = K_0[t][i];
                     K_0[t][i] = K_0[bestInd][i];
                     K_0[bestInd][i] = tmp;
-
-                    tmp = K_1[t][i];
-                    K_1[t][i] = K_1[bestInd][i];
-                    K_1[bestInd][i] = tmp;
                 }
+
+                tmp = K_1[t];
+                K_1[t] = K_1[bestInd];
+                K_1[bestInd] = tmp;
             }
 
             logTime('lines swapped');
@@ -304,46 +376,22 @@ public class Area extends EventDispatcher {
                 if (i == t)
                     continue;
 
-                var k:Complex = K_0[i][t].divide(K_0[t][t]);
+                var k:Number = K_0[i][t] / K_0[t][t];
 
-                if (k.isZero())
+                if (k == 0)
                     continue;
 
-                if (k._re != 0 && k._im != 0)
-                    trace('k = ', k.toString());
+                for (j = 0; j < n; j++)
+                    K_0[i][j] = K_0[i][j] - k * K_0[t][j];
+                K_1[i] = K_1[i] - k * K_1[t];
 
-                for (j = 0; j < n; j++) {
-                    K_0[i][j].minusCoef0(K_0[t][j], k);
-                    K_1[i][j].minusCoef0(K_1[t][j], k);
-                }
-
-//                K_1[i][0].minusCoef0(K_1[t][0], k); //only one column
-
-                K_0[i][t].zero0(); //to increase accuracy
+                K_0[i][t] = 0; //to increase accuracy
             }
 
             logTime("line " + t + " processed"); // 33.726 пропусков строчек
         }
 
-        //evaluate determinant
-
-        _det = new Complex(1);
-
-        for (t = 0; t < n; t++) {
-            var diag:Complex = K_0[t][t];
-            for (j = 0; j < n; j++) {
-                K_1[t][j].divide0(diag);
-            }
-
-            _det.mul0(diag);
-        }
-
-        //det = root of discriminant
-
-        if (n % 2 == 1)
-            _det.mul0(new Complex(0, 1));
-
-        trace('det', det.toString());
+        return [false, K_1];
     }
 
 //    private function traceMatrix(K:Array, title:String):void {
@@ -353,7 +401,10 @@ public class Area extends EventDispatcher {
 //            trace(line);
 //    }
 
-    private function updateSourceInfo(src:int):void {
+    private function updateSourceIndex(src:int):void {
+        if (_source[src].noSource)
+            return;
+
         var typ:int = cellType(_source[src].sourceX, _source[src].sourceY);
         _source[src].sourceIsW = typ == 0 || typ == 3;
         var y_cells:Array = _source[src].sourceIsW ? w_cells : b_cells;
@@ -366,10 +417,10 @@ public class Area extends EventDispatcher {
             }
         }
 
-        _source[src].sourceInd = -1; //kann nicht sein
+        _source[src].sourceInd = -1;
     }
 
-    public function couple(x:Number, y:Number):Complex {
+    public function couple(x:Number, y:Number):Number {
         for each (var y_cells:Array in [w_cells, b_cells]) {
             var ind:int = -1;
             for (var i:int = 0; i < y_cells.length; i++) {
@@ -385,13 +436,10 @@ public class Area extends EventDispatcher {
 
             var pointIsW:Boolean = y_cells == w_cells;
 
-            if (pointIsW == _source[0].sourceIsW)
-                return new Complex(0);
-
-            return _source[0].sourceIsW ? K_1[ind][_source[0].sourceInd] : K_1[_source[0].sourceInd][ind];
+            return pointIsW ? Kw_1[ind] : Kb_1[ind];
         }
 
-        return null;
+        return NaN;
     }
 
     public function addRectangle(x1:int, y1:int, x2:int, y2:int):void {
@@ -474,5 +522,20 @@ public class Area extends EventDispatcher {
         _source[src].noSource = value;
     }
 
+    public function get w_count():int {
+        return w_cells.length;
+    }
+
+    public function get b_count():int {
+        return b_cells.length;
+    }
+
+    public function det_is_0(src:int):Boolean {
+        return _det_is_0[src];
+    }
+
+    public function sourceDisplay(src:int):String {
+        return _source[src].display;
+    }
 }
 }

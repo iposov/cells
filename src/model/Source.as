@@ -6,6 +6,8 @@
  * To change this template use File | Settings | File Templates.
  */
 package model {
+import flash.net.registerClassAlias;
+
 public class Source {
 
     private var _sourceX:int = 0;
@@ -57,6 +59,12 @@ public class Source {
 
     public function set sourceInd(value:int):void {
         _sourceInd = value;
+    }
+
+    public function get display():String {
+        if (_noSource)
+            return '-';
+        return _sourceIsW ? 'wht' : 'blk';
     }
 }
 }

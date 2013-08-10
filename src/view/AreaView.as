@@ -22,12 +22,10 @@ import flash.text.TextFormatAlign;
 import flash.utils.Timer;
 
 import model.Area;
-import model.Complex;
 
 public class AreaView extends Sprite {
 
     public static const MAXIMIZED:String = 'event maximized';
-    public static const MERGE_CLICK:String = 'event merge';
 
     private static const borderSize1:int = 1;
     private static const borderSize2:int = 2;
@@ -63,16 +61,11 @@ public class AreaView extends Sprite {
     private var coefTextField:TextField;
     private var tooltip:Sprite;
     private var tooltipText:TextField;
-    private var mergeButton:Sprite;
 
     private var selectingRectangle:Boolean = false;
     private var selectingRectangleAdd:Boolean;
     private var selectingRectanglePoint:int = 0;
     private var selectingRectangle1stPoint:Point; //TODO report 'convert to local'
-
-    private var _mergers:Array = [];
-    private var mainMerge:Boolean = true;
-    private var _mergeOn:Boolean = false;
 
     private var _uniformColoring:Boolean = true;
 
@@ -93,40 +86,13 @@ public class AreaView extends Sprite {
         _area.addEventListener(Event.CHANGE, areaChangeHandler);
         _area.addEventListener(Area.SOURCE_CHANGE_EVENT, areaChangeHandler);
 
-        if (mergers != null)
-            for each (var mergerArea:AreaView in mergers)
-                mergerArea.addEventListener(MERGE_CLICK, mergeRegimeChangeHandler);
-        else
-            mainMerge = false;
-
         initView(normalWidth, normalHeight);
 
         redrawField();
     }
 
     private function isMerging():Boolean {
-        return _mergers != null && _mergers.length > 0;
-    }
-
-    private function mergeRegimeChangeHandler(event:Event):void {
-        var merger:AreaView = AreaView(event.target);
-        if (merger.mergeOn) {
-            if (!_area.evaluated || !_area.hasSource(0)) {
-                merger.mergeOn = false;
-                coefTextField.type = isMerging() ? TextFieldType.DYNAMIC : TextFieldType.INPUT;
-                return;
-            }
-
-            _mergers.push(merger);
-        } else {
-            var ind:int = _mergers.indexOf(merger);
-            if (ind >= 0)
-                _mergers.splice(ind, 1);
-        }
-
-        redrawField();
-        initTooltip();
-        coefTextField.type = isMerging() ? TextFieldType.DYNAMIC : TextFieldType.INPUT;
+        return false;
     }
 
     public function get area():Area {
@@ -159,15 +125,6 @@ public class AreaView extends Sprite {
         maxmin.x = width - 20;
         maxmin.y = -16;
         addChild(maxmin);
-
-        //merge
-        if (! mainMerge) {
-            mergeButton = Button.createSprite(80, 14, 0xFF8888, 'merge +', 0, -3);
-            mergeButton.addEventListener(MouseEvent.CLICK, mergeButton_clickHandler);
-            mergeButton.x = width - 106;
-            mergeButton.y = -16;
-            addChild(mergeButton);
-        }
 
         //init coefTextField
         coefTextField = new TextField();
@@ -256,10 +213,7 @@ public class AreaView extends Sprite {
 
     private function areaChangeHandler(event:Event):void {
         redrawField();
-        updateEvaluatioInfo();
-
-        if (!mainMerge)
-            mergeOn = false;
+        updateEvaluationInfo();
     }
 
     private function redrawField():void {
@@ -287,10 +241,7 @@ public class AreaView extends Sprite {
 
         //draw cells
 
-        if (isMerging())
-            drawMergerCells();
-        else
-            drawCells();
+        drawCells();
 
         //mark source
         for (var src:int = 0; src < 2; src++)
@@ -307,73 +258,6 @@ public class AreaView extends Sprite {
         for each (var xy:Array in _area.cells) {
             var p:Point = logical2screen(xy[0], xy[1]);
             g.beginFill(TYPE_COLORS[_area.cellType(xy[0], xy[1])], TYPE_ALPHA);
-            g.drawRect(p.x, p.y, _cellSize, _cellSize);
-            g.endFill();
-        }
-    }
-
-    private function linComb(x:int, y:int):Complex {
-        var c:Complex = _area.couple(x, y);
-        if (c == null)
-            return null;
-        
-        var lc:Complex = coefficient.mul(c);
-
-        for each (var areaView:AreaView in _mergers) {
-            var sx:int = areaView.area.getSourceX(0);
-            var sy:int = areaView.area.getSourceY(0);
-
-            c = areaView.area.couple(x + sx - _area.getSourceX(0), y + sy - _area.getSourceY(0));
-            if (c == null)
-                return null;
-
-            var coef:Complex = areaView.coefficient;
-
-            lc.plus0(coef.mul0(c));
-        }
-
-        return lc;
-    }
-
-    private function drawMergerCells():void {
-        var g:Graphics = _field.graphics;
-
-        g.lineStyle();
-
-        //create draw list
-
-        var drawList:Array = [];
-        var norms:Array = [];
-        var maxNorm:Number = 0;
-
-        for each (var xy:Array in _area.cells) {
-            var lc:Complex = linComb(xy[0], xy[1]);
-
-            if (lc == null)
-                continue;
-
-            var norm:Number = lc.norm;
-            if (norm > maxNorm)
-                maxNorm = norm;
-            drawList.push([xy[0], xy[1], norm]);
-            norms.push(norm);
-        }
-
-        norms.sort(Array.NUMERIC);
-
-        for each (var item:Array in drawList) {
-            norm = item[2];
-
-            if (_uniformColoring)
-                var t:int = Math.round(norm * 255 / maxNorm);
-            else
-                t = norms.indexOf(norm) * 255 / norms.length;
-
-            var c:uint = t << 16 | 0xFF - t;
-
-            var p:Point = logical2screen(item[0], item[1]);
-
-            g.beginFill(c);
             g.drawRect(p.x, p.y, _cellSize, _cellSize);
             g.endFill();
         }
@@ -580,23 +464,26 @@ public class AreaView extends Sprite {
         var t:Timer = new Timer(100, 1);
         t.addEventListener(TimerEvent.TIMER, function(event:Event):void {
             _area.evaluate();
-            updateEvaluatioInfo();
+            updateEvaluationInfo();
         });
         t.start();
     }
 
-    private function updateEvaluatioInfo():void {
-        if (_area.differentSizes) {
-            evalTextField.text = 'w_0 + w_1 <> b_0 + b_1';
+    private function updateEvaluationInfo():void {
+        if (_area.wrongSizes) {
+            evalTextField.text = '|w| = ' + _area.w_count + ' |b| = ' +
+                    _area.b_count + ' 1:' + _area.sourceDisplay(0) + ' 2:' + _area.sourceDisplay(1);
             return;
         }
 
         if (! _area.evaluated) {
-            evalTextField.text = 'не вычислено';
+            evalTextField.text =
+                    (_area.det_is_0(0) ? 'det_b = 0' : 'det_b != 0') + ', ' +
+                            (_area.det_is_0(1) ? 'det_w = 0' : 'det_w != 0');
             return;
         }
 
-        evalTextField.text = 'det = ' + _area.det.toString();
+        evalTextField.text = 'Вычислено!';
     }
 
     private function field_mouseMoveHandler(event:MouseEvent):void {
@@ -606,27 +493,15 @@ public class AreaView extends Sprite {
         }
 
         var pl:Point = screen2logical(event.localX, event.localY);
-        var inv:Complex = _area.couple(pl.x, pl.y);
-        if (inv == null) {
+        var inv:Number = _area.couple(pl.x, pl.y);
+        if (isNaN(inv)) {
             tooltip.visible = false;
             return;
         }
 
         var strTyp:String = _area.cellTypeString(pl.x, pl.y);
 
-        if (isMerging()) {
-            var lc:Complex = linComb(pl.x, pl.y);
-
-            if (lc == null) {
-                tooltip.visible = false;
-                return;
-            }
-
-            var text:String = "lc: " + lc.toString();
-        } else
-            text = strTyp + ": " + inv.toString();
-
-        tooltipText.text = text;
+        tooltipText.text = strTyp + ": " + inv.toString();
         tooltipText.y = 1;
 
         tooltip.x = event.localX - tooltip.width / 2;
@@ -660,52 +535,8 @@ public class AreaView extends Sprite {
         return _field;
     }
 
-    private function mergeButton_clickHandler(event:MouseEvent):void {
-        mergeOn = !mergeOn;
-    }
-
-    public function get mergeOn():Boolean {
-        return _mergeOn;
-    }
-
-    public function set mergeOn(value:Boolean):void {
-        if (_mergeOn == value)
-            return;
-
-        if (value)
-            if (!_area.hasSource(0) || !_area.evaluated)
-                return;
-
-        _mergeOn = value;
-
-        if (_mergeOn)
-            TextField(mergeButton.getChildAt(0)).text = 'merge -';
-        else
-            TextField(mergeButton.getChildAt(0)).text = 'merge +';
-
-        coefTextField.type = _mergeOn ? TextFieldType.DYNAMIC : TextFieldType.INPUT;
-
-        dispatchEvent(new Event(MERGE_CLICK));
-    }
-
     public function set uniformColoring(value:Boolean):void {
         _uniformColoring = value;
-    }
-
-    public function get coefficient():Complex {
-        var txt:String = coefTextField.text.replace(/ /, '');
-        if (txt.length == 0)
-            return new Complex(0);
-        if (txt.charAt(txt.length - 1) == 'i') {
-            var imaginary:Boolean = true;
-            txt = txt.substring(0, txt.length - 1);
-        } else
-            imaginary = false;
-
-        if (imaginary)
-            return new Complex(0, Number(txt));
-        else
-            return new Complex(Number(txt));
     }
 
     //load and save
