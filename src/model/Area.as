@@ -184,6 +184,19 @@ public class Area extends EventDispatcher {
             return;
         }
 
+        //sort w0 then w1 and b0 then b1
+
+        function cmp_even_odd(a:Array, b:Array):int {
+            var ta:int = cellType(a[0], a[1]);
+            var tb:int = cellType(b[0], b[1]);
+            return ta % 2 - tb % 2;
+        }
+
+        w_cells.sort(cmp_even_odd);
+        b_cells.sort(cmp_even_odd);
+
+        //update index
+
         for (var src:int = 0; src < 2; src++)
             updateSourceIndex(src);
 
@@ -200,17 +213,6 @@ public class Area extends EventDispatcher {
             _evaluated = false;
             return;
         }
-
-        //sort w0 then w1 and b0 then b1
-
-        function cmp_even_odd(a:Array, b:Array):int {
-            var ta:int = cellType(a[0], a[1]);
-            var tb:int = cellType(b[0], b[1]);
-            return ta % 2 - tb % 2;
-        }
-
-        w_cells.sort(cmp_even_odd);
-        b_cells.sort(cmp_even_odd);
 
         //create initial matrix K
 
