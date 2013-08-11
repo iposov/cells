@@ -55,7 +55,6 @@ public class Cells extends Sprite {
         addChild(areaView4);
 
         areaView1 = new AreaView(area1, [areaView2, areaView3, areaView4], 'Поле 1', 494, 265, 2, 20, 994, 569);
-        areaView1.uniformColoring = false;
         areaView1.x = 2;
         areaView1.y = 20;
         addChild(areaView1);

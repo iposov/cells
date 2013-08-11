@@ -16,9 +16,7 @@ import flash.events.TimerEvent;
 import flash.geom.Point;
 import flash.text.TextField;
 import flash.text.TextFieldAutoSize;
-import flash.text.TextFieldType;
 import flash.text.TextFormat;
-import flash.text.TextFormatAlign;
 import flash.utils.Timer;
 
 import model.Area;
@@ -58,7 +56,6 @@ public class AreaView extends Sprite {
     private var _maximized:Boolean = false;
 
     private var evalTextField:TextField;
-    private var coefTextField:TextField;
     private var tooltip:Sprite;
     private var tooltipText:TextField;
 
@@ -66,8 +63,6 @@ public class AreaView extends Sprite {
     private var selectingRectangleAdd:Boolean;
     private var selectingRectanglePoint:int = 0;
     private var selectingRectangle1stPoint:Point; //TODO report 'convert to local'
-
-    private var _uniformColoring:Boolean = true;
 
     public function AreaView(area:Area, mergers:Array, title:String, normalWidth:int, normalHeight:int, openX:int, openY:int, openWidth:int, openHeight:int) {
         _area = area;
@@ -125,19 +120,6 @@ public class AreaView extends Sprite {
         maxmin.x = width - 20;
         maxmin.y = -16;
         addChild(maxmin);
-
-        //init coefTextField
-        coefTextField = new TextField();
-        coefTextField.border = true;
-        coefTextField.borderColor = 0x000000;
-        coefTextField.type = TextFieldType.INPUT;
-        coefTextField.defaultTextFormat = new TextFormat('Arial', 12, 0, true, null, null, null, null, TextFormatAlign.CENTER);
-        coefTextField.width = 40;
-        coefTextField.height = 16;
-        coefTextField.x = width - 106 - coefTextField.width - 6;
-        coefTextField.y = -18;
-        coefTextField.text = '1';
-        addChild(coefTextField);
 
         //draw title
         var titleField:TextField = new TextField();
@@ -529,10 +511,6 @@ public class AreaView extends Sprite {
 
     public function get field():Sprite {
         return _field;
-    }
-
-    public function set uniformColoring(value:Boolean):void {
-        _uniformColoring = value;
     }
 
     //load and save
