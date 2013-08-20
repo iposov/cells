@@ -479,7 +479,7 @@ public class AreaView extends Sprite {
 
         var strTyp:String = _area.cellTypeString(pl.x, pl.y);
 
-        tooltipText.text = strTyp + ": " + inv.toString();
+        tooltipText.text = strTyp + ": " + inv.toFixed(10);
         tooltipText.y = 1;
 
         tooltip.x = event.localX - tooltip.width / 2;
